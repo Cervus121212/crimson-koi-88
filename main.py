@@ -1,32 +1,54 @@
-"""Write the bundled food picture to the output directory.
+#!/usr/bin/env python3
+"""Salin gambar makanan yang sudah disiapkan ke direktori output.
 
-Copies image.jpg (a single ripe mango half, glistening with juice and
-honey, extreme close-up on a dark background) byte for byte to
-<MAKEFUN_OUTPUT_DIR>/entry.png. Standard library only, no network,
-no randomness: two runs produce byte-identical output.
+Program ini mengambil image.jpg yang ada di samping file ini — sebuah
+belahan mangga matang, berkilau jus dan madu, close-up ekstrem dengan
+latar gelap — lalu menyalinnya apa adanya ke
+$MAKEFUN_OUTPUT_DIR/entry.png. Penyalinan dilakukan byte demi byte,
+jadi isi entry.png identik dengan image.jpg.
+
+Hanya memakai pustaka standar Python. Tidak ada akses jaringan, tidak
+ada angka acak, tidak ada waktu — dua kali jalan hasilnya sama persis.
 """
 
 import hashlib
-import os
-import shutil
+from pathlib import Path
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-SOURCE = os.path.join(HERE, "image.jpg")
+# Nama file sumber dan file hasil.
+SOURCE_NAME = "image.jpg"
+TARGET_NAME = "entry.png"
+
+# Ukuran blok baca/tulis (64 KiB) supaya penyalinan hemat memori.
+CHUNK_SIZE = 65536
 
 
-# Copy the bundled picture byte for byte; the judge reads entry.png,
-# so the output must be a deterministic, bit-exact copy of image.jpg.
-def main():
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
-    os.makedirs(out_dir, exist_ok=True)
-    out_path = os.path.join(out_dir, "entry.png")
-    with open(SOURCE, "rb") as src, open(out_path, "wb") as dst:
-        shutil.copyfileobj(src, dst)
-    with open(out_path, "rb") as f:
-        data = f.read()
-    digest = hashlib.sha256(data).hexdigest()
-    print("wrote %s (%d bytes, sha256 %s)" % (out_path, len(data), digest))
+def copy_image(source: Path, target: Path) -> bytes:
+    """Salin source ke target per blok, lalu kembalikan hash SHA-256 hasilnya."""
+    hasher = hashlib.sha256()
+    with source.open("rb") as reader, target.open("wb") as writer:
+        while True:
+            block = reader.read(CHUNK_SIZE)
+            if not block:
+                break
+            writer.write(block)
+            hasher.update(block)
+    return hasher.digest()
+
+
+def run() -> None:
+    import os
+
+    source = Path(__file__).resolve().parent / SOURCE_NAME
+    out_dir = Path(os.environ.get("MAKEFUN_OUTPUT_DIR", "/output"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    target = out_dir / TARGET_NAME
+
+    digest = copy_image(source, target)
+    print(
+        "entry.png ditulis: %s (%d byte, sha256 %s)"
+        % (target, target.stat().st_size, digest.hex())
+    )
 
 
 if __name__ == "__main__":
-    main()
+    run()
